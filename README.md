@@ -194,7 +194,7 @@ Released under the MIT License. See [LICENSE](LICENSE).
 
 ## Contact
 
-Taehyeon Choi, Jinwan Park
+Taehyeon Choi(taehyeon [at] korea.ac.kr), Jinwan Park
 Department of Image Science and Arts, Graduate School of Advanced Imaging Science, Multimedia and Film, Chung-Ang University, Seoul 06974, South Korea
 
-Corresponding author: Jinwan Park (jinpark@cau.ac.kr)
+Corresponding author: Jinwan Park
