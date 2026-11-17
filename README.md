@@ -52,7 +52,22 @@ Download the KITTI 3D object detection Velodyne point clouds and point `--kitti_
 
 ## Pretrained weights
 
-Trained checkpoints for every model and configuration reported in the paper are provided under `checkpoints/` (ModelNet40) and `checkpoints_kitti/` (KITTI), following the naming convention `<model_type>_best.pt`.
+Trained checkpoints for every model and configuration reported in the paper are included in this repository, organised by configuration. Directory names encode the compression ratio α and the upsampling ratio β, so `CR_50_UP_4` corresponds to (α, β) = (0.50, ×4).
+
+```
+checkpoints/              ModelNet40
+  CR_50_UP_4/
+  CR_50_UP_6/
+  CR_75_UP_4/
+  CR_75_UP_6/
+checkpoints_kitti/        KITTI
+  CR_50_UP_4/
+  CR_75_UP_4/
+```
+
+Each directory holds `unified_cunet_best.pt` and `unified_cunet_mlp_best.pt`. The KITTI experiments in the paper are reported for β = ×4 only, so `checkpoints_kitti/` contains two configurations rather than four.
+
+Weights are released for the proposed model and its ablation variant only. The four sequential baselines are reimplementations of methods published by other authors, and we provide the training scripts rather than redistributing their weights. Every baseline was trained under exactly the same protocol as the proposed model, described under [Training](#training) and fixed by the default arguments in `train.py`, including the random seed. Running `train.py` with the corresponding `--model_type` therefore reproduces the baseline checkpoints used for the reported comparisons.
 
 ## Models
 
@@ -64,6 +79,8 @@ Trained checkpoints for every model and configuration reported in the paper are 
 | `fps_hspcnet` | FPS+HSPC-Net | 0.98M |
 | `unified_cunet_mlp` | Unified-CUNet-MLP (ablation) | 0.30M |
 | `unified_cunet` | Unified-CUNet (proposed) | 0.24M |
+
+Pretrained weights are released for `unified_cunet` and `unified_cunet_mlp`; the four baselines can be trained with the scripts provided here.
 
 For the `fps_*` sequential baselines, FPS preprocessing is applied automatically using `--compression_ratio` as the compression ratio α. The loss target is always the original full-resolution point cloud, so all methods are trained and evaluated under the same protocol.
 
@@ -79,7 +96,7 @@ python train.py \
     --data_dir ./ModelNet40 \
     --compression_ratio 0.5 \
     --upsample_ratio 4 \
-    --save_dir ./checkpoints
+    --save_dir ./checkpoints/CR_50_UP_4
 ```
 
 Train a sequential baseline:
@@ -90,10 +107,10 @@ python train.py \
     --data_dir ./ModelNet40 \
     --compression_ratio 0.5 \
     --upsample_ratio 4 \
-    --save_dir ./checkpoints
+    --save_dir ./checkpoints/CR_50_UP_4
 ```
 
-Checkpoints are written to `<save_dir>/<model_type>_best.pt`, with the training history alongside as `<model_type>_history.pt`.
+Checkpoints are written to `<save_dir>/<model_type>_best.pt`, with the training history alongside as `<model_type>_history.pt`. Point `--save_dir` at the directory matching the configuration being trained, so that the checkpoints line up with the layout described above.
 
 Default hyperparameters match the paper: AdamW with learning rate 0.0002 and weight decay 0.01, cosine annealing with warm restarts, 5 warm-up epochs, batch size 4, 50 epochs with early stopping (patience 15), and mixed precision enabled. Pass `--simple_loss` to train with Chamfer distance alone, which is faster and useful for debugging, and `--resume <path>` to continue from a checkpoint.
 
@@ -104,10 +121,11 @@ python train_kitti.py \
     --model_type unified_cunet \
     --kitti_dir ./data/kitti \
     --compression_ratio 0.5 \
-    --upsample_ratio 4
+    --upsample_ratio 4 \
+    --checkpoint_dir ./checkpoints_kitti/CR_50_UP_4
 ```
 
-Pass `--model_type all` to train all six models in sequence. Checkpoints default to `./checkpoints_kitti`.
+Pass `--model_type all` to train all six models in sequence.
 
 ## Evaluation
 
@@ -117,28 +135,39 @@ Evaluate every model for one configuration and print a side-by-side table:
 python evaluate.py \
     --compression_ratio 0.5 \
     --upsample_ratio 4 \
-    --checkpoint_dir ./checkpoints \
-    --data_dir ./ModelNet40
+    --checkpoint_dir ./checkpoints/CR_50_UP_4 \
+    --data_dir ./ModelNet40 \
+    --models unified_cunet,unified_cunet_mlp
 ```
 
-Reproduce all four configurations reported in the paper, (α, β) ∈ {0.50, 0.75} × {×4, ×6}:
+`--models` restricts the run to the methods whose checkpoints are present. Drop the flag once the baselines have been trained, and `evaluate.py` will then evaluate all six methods and reproduce the full comparison tables from the paper.
+
+Reproduce all four configurations reported in the paper, (α, β) ∈ {0.50, 0.75} × {×4, ×6}, by running the four commands in turn:
 
 ```bash
-python evaluate.py \
-    --checkpoint_dir ./checkpoints \
-    --data_dir ./ModelNet40 \
-    --full_comparison
+python evaluate.py --compression_ratio 0.50 --upsample_ratio 4 \
+    --checkpoint_dir ./checkpoints/CR_50_UP_4 --data_dir ./ModelNet40
+python evaluate.py --compression_ratio 0.75 --upsample_ratio 4 \
+    --checkpoint_dir ./checkpoints/CR_75_UP_4 --data_dir ./ModelNet40
+python evaluate.py --compression_ratio 0.50 --upsample_ratio 6 \
+    --checkpoint_dir ./checkpoints/CR_50_UP_6 --data_dir ./ModelNet40
+python evaluate.py --compression_ratio 0.75 --upsample_ratio 6 \
+    --checkpoint_dir ./checkpoints/CR_75_UP_6 --data_dir ./ModelNet40
 ```
+
+Add `--models unified_cunet,unified_cunet_mlp` to each command to evaluate only the released checkpoints.
+
+Because the checkpoints are organised into one directory per configuration, run the configurations separately as shown above rather than with the `--full_comparison` flag, which sweeps all four configurations against a single `--checkpoint_dir`.
 
 Results are written to `--save_dir` (default `./results`) as `results_a<alpha>_b<beta>.txt` and as a LaTeX table `table_a<alpha>_b<beta>.tex`. Use `--models` to restrict the run to a comma-separated subset of model keys, `--max_samples` to cap the number of test samples, and `--ckpt_<key>` to override an individual checkpoint path.
 
 ### KITTI
 
 ```bash
-python evaluate_kitti.py \
-    --kitti_dir ./data/kitti \
-    --checkpoint_dir ./checkpoints_kitti \
-    --full_comparison
+python evaluate_kitti.py --compression_ratio 0.50 --upsample_ratio 4 \
+    --kitti_dir ./data/kitti --checkpoint_dir ./checkpoints_kitti/CR_50_UP_4
+python evaluate_kitti.py --compression_ratio 0.75 --upsample_ratio 4 \
+    --kitti_dir ./data/kitti --checkpoint_dir ./checkpoints_kitti/CR_75_UP_4
 ```
 
 Outputs are written to `./results_kitti` by default. `--split training` evaluates on the training frames instead of the test frames, and `--max_frames` with `--patches_per_frame` gives a quick smoke test.
